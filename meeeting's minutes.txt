@@ -1,0 +1,5 @@
+1-show progress
+TASKS:
+1-deraset gadwa.
+2-complete gui and deployment
+3-notebooks organization and presentation
