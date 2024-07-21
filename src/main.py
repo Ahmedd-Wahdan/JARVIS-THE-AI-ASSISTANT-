@@ -22,10 +22,12 @@ from pydub import AudioSegment
 from pydub.playback import play
 import imageio
 from tkinter import PhotoImage
+from ollama import chat
 
 
 class FaceRecognitionApp():
     def __init__(self, root):
+        
         self.root = root
         self.root.title("Voice Assistant with Face Recognition")
         self.root.geometry("1280x720")  
@@ -36,6 +38,14 @@ class FaceRecognitionApp():
         self.recognized_gender="female"
         self.output_text = tk.Text(self.root, height=6, width=40)
         self.output_text.pack(pady=10)
+        self.functions = {"greeting":self.greeting,
+                          "open_back_camera":self.open_camera,
+                          "close_back_camera":self.close_camera,
+                          "weather":self.get_and_speak_weather,
+                          "play_song_on_spotify_app":self.play_song_on_spotify_app,
+                          "play_video_on_youtube":self.play_video_on_youtube,
+                          "exit_app":self.exit_app} 
+
         #pil_image = Image.open(bg_image_path)
         #tk_image = ImageTk.PhotoImage(pil_image)
 
@@ -166,51 +176,89 @@ class FaceRecognitionApp():
                         audio = self.r.listen(mic,timeout=4,phrase_time_limit=4)
                         text = self.r.recognize_google(audio)
                         text = text.lower()
-                        
                         if text is not None:
                             self.root.after(100, self.update_ui_1,text)
-                            if "how are you" in text:
-                                self.speak("Never been better, master wahhhdan",self.recognized_gender)
-                            elif "hello" in text:
-                                self.speak("Hi there.",self.recognized_gender)
-                            elif "open google" in text:
-                                webbrowser.open_new('http://google.com')
-                            elif "go to sleep" in text:
-                                self.speak("Okay, goodnight sir.",self.recognized_gender)
-                                self.on_close()
-                                exit()
-                            
-                            elif "google" in text:
-                                google_index = text.index("google")
-                                search_query = text[google_index + len("google"):].strip()
-                                pywhatkit.search(search_query)
-                                
-                            elif "youtube" in text:
-                                google_index = text.index("youtube")
-                                search_query = text[google_index + len("youtube"):].strip()
-                                pywhatkit.playonyt(search_query)
+                        prompt = f"""
+                           You are an AI assistant that understands english and can answer any question to help the driver your only task is to return a function name only. Given the user’s input: “{text}”, choose the best matching function from the following list: {', '.join(self.functions.keys())}.
+                            understand the context of the user input. If the context of the user input logically matches one of the functions, return the exact name of that function. if the input doesnt match any, return 'none'.
+                            """
 
-                            elif "spotify" in text:
-                                spotify_index = text.index("spotify")
-                                search_query = text[spotify_index + len("spotify"):].strip()
-                                self.play_song_on_spotify_app(search_query)
+                        messages = [
+                          {
+                            'role': 'user',
+                            'content': prompt,
+                          },
+                        ]
+                        res = chat('gemma2', messages=messages)
+                        result = res['message']['content']
+                        fun_name = result.strip()
+                        print("function name",fun_name)
+
+
+                        if fun_name in self.functions:
+        
+                            self.functions[fun_name](text)
+
+
+                        elif fun_name.lower() == "none":
+                            messages = [
+                          {
+                            'role': 'user',
+                            'content': text+"you are jarvis an ai assistant in cars but you can answer questions",
+                          },
+                                        ]   
+                            res2 = chat('gemma2', messages=messages)
+                            result2 = res2['message']['content']
+
+                            self.speak(result2,self.recognized_gender)
+                        
+        #--------------------------------------------------------------------------------------------------------------------
+                                                    #OLD IMPLEMENTATION
+                        # if text is not None:
+                        #     self.root.after(100, self.update_ui_1,text)
+                        #     if "how are you" in text:
+                        #         self.speak("Never been better, master wahhhdan",self.recognized_gender)
+                        #     elif "hello" in text:
+                        #         self.speak("Hi there.",self.recognized_gender)
+                        #     elif "open google" in text:
+                        #         webbrowser.open_new('http://google.com')
+                        #     elif "go to sleep" in text:
+                        #         self.speak("Okay, goodnight sir.",self.recognized_gender)
+                        #         self.on_close()
+                        #         exit()
                             
-                            elif "camera" in text and "stop" in text:
-                                self.close_back_camera()
-                                self.speak("Stopping back camera",self.recognized_gender)
-                            
-                            elif "camera" in text and "open" in text:
-                                if not self.back_camera_thread or not self.back_camera_thread.is_alive():
-                                    self.back_camera_thread = threading.Thread(target=self.open_back_camera)
-                                    self.back_camera_thread.start()
-                                else:
-                                    self.speak("The back camera is already active.",self.recognized_gender)
+                        #     elif "google" in text:
+                        #         google_index = text.index("google")
+                        #         search_query = text[google_index + len("google"):].strip()
+                        #         pywhatkit.search(search_query)
                                 
-                            elif "weather" in text:
-                                self.get_and_speak_weather()
+                        #     elif "youtube" in text:
+                        #         google_index = text.index("youtube")
+                        #         search_query = text[google_index + len("youtube"):].strip()
+                        #         pywhatkit.playonyt(search_query)
+
+                        #     elif "spotify" in text:
+                        #         spotify_index = text.index("spotify")
+                        #         search_query = text[spotify_index + len("spotify"):].strip()
+                        #         self.play_song_on_spotify_app(search_query)
                             
-                            else:
-                                self.speak("I'm sorry, sir. I did not understand your request.",self.recognized_gender)
+                        #     elif "camera" in text and "stop" in text:
+                        #         self.close_back_camera()
+                        #         self.speak("Stopping back camera",self.recognized_gender)
+                            
+                        #     elif "camera" in text and "open" in text:
+                        #         if not self.back_camera_thread or not self.back_camera_thread.is_alive():
+                        #             self.back_camera_thread = threading.Thread(target=self.open_back_camera)
+                        #             self.back_camera_thread.start()
+                        #         else:
+                        #             self.speak("The back camera is already active.",self.recognized_gender)
+                                
+                        #     elif "weather" in text:
+                        #         self.get_and_speak_weather()
+#--------------------------------------------------------------------------------------------------------------------
+
+                        else:
+                            self.speak("I'm sorry, sir. I did not understand your request.",self.recognized_gender)
 
                 except sr.UnknownValueError:
                     continue
@@ -218,6 +266,56 @@ class FaceRecognitionApp():
                     continue
                 except sr.exceptions.WaitTimeoutError:
                     continue
+
+
+    def greeting(self,query):
+        self.speak(query+ " master wahhhdddan",self.recognized_gender)
+    def play_song_on_spotify_app(self, query):
+           try:
+                spotify_index = query.index("spotify")
+
+                search_query = query[spotify_index + len("spotify"):].strip()
+                if spotify_index == -1:
+                    search_query = "amr diab"
+                search_url = f"spotify:search:{search_query}"
+                os.system(f"start {search_url}")
+
+           except Exception as e:
+                return
+
+    def open_camera(self,query):
+        if not self.back_camera_thread or not self.back_camera_thread.is_alive():
+            self.back_camera_thread = threading.Thread(target=self.open_back_camera)
+            self.back_camera_thread.start()
+        else:
+            self.speak("The back camera is already active.",self.recognized_gender)
+
+
+    def close_camera(self,query):
+         self.close_back_camera()
+         self.speak("Stopping back camera",self.recognized_gender)
+
+    def search_on_google(self, query):
+        try:
+            google_index = query.index("google")
+            search_query = query[google_index + len("google"):].strip()
+            pywhatkit.search(search_query)
+
+        except Exception as e:
+            return
+
+    def play_video_on_youtube(self, query):
+        try:
+            yt_index = query.index("youtube")
+            search_query = query[yt_index + len("youtube"):].strip()
+            pywhatkit.playonyt(search_query)
+        except Exception as e:
+            return
+
+    def exit_app(self,query):
+        self.speak("Okay, goodnight sir.",self.recognized_gender)
+        self.on_close()
+        exit()
 
     def start_face_recognition(self):
         # Start face recognition before voice  assistant
@@ -259,9 +357,7 @@ class FaceRecognitionApp():
 
         self.speaking_flag = False
 
-    def play_song_on_spotify_app(self, song_name):
-            search_url = f"spotify:search:{song_name}"
-            os.system(f"start {search_url}")
+   
     
     def load_yolo(self, model_path): 
         model = YOLO(model_path)
@@ -329,7 +425,7 @@ class FaceRecognitionApp():
             tk_image = ImageTk.PhotoImage(image=img)
             return tk_image
 
-    def close_back_camera(self, event=None):
+    def close_back_camera(self,event=None):
         if self.back_camera_thread and self.back_camera_thread.is_alive():
             # Set the stop_back_camera flag to signal thread termination
             self.stop_back_camera.set()
@@ -427,7 +523,7 @@ class FaceRecognitionApp():
             self.capture.release()
             cv2.destroyAllWindows()
         
-    def get_and_speak_weather(self):
+    def get_and_speak_weather(self,query):
         # Function to get weather information and speak it to the user
         api_key = '6ba0421f5c194ad2a15183722241003'  
         city_name = 'Cairo' 
