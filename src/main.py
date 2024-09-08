@@ -1,17 +1,17 @@
+
 import pyttsx3
 import requests
 import speech_recognition as sr
 import webbrowser
 import tkinter as tk
 import cv2
-import threading
-import face_recognition
+import threading 
 import pywhatkit
 import ultralytics
 from ultralytics import YOLO
 import torch 
-from supervision.tools.detections import Detections, BoxAnnotator
-from supervision.draw.color import ColorPalette
+from supervision.detection.core import Detections
+from supervision.annotators.core import BoxAnnotator
 from supervision.draw.color import ColorPalette
 from PIL import Image, ImageTk
 import dlib
@@ -22,6 +22,7 @@ from pydub import AudioSegment
 from pydub.playback import play
 import imageio
 from tkinter import PhotoImage
+# import face_recognition
 from ollama import chat
 
 
@@ -41,10 +42,10 @@ class FaceRecognitionApp():
         self.functions = {"greeting":self.greeting,
                           "open_back_camera":self.open_camera,
                           "close_back_camera":self.close_camera,
-                          "weather":self.get_and_speak_weather,
+                          "weather":self.get_and_speak_weather, 
                           "play_song_on_spotify_app":self.play_song_on_spotify_app,
                           "play_video_on_youtube":self.play_video_on_youtube,
-                          "exit_app":self.exit_app} 
+                          "farewell":self.farewell} 
 
         #pil_image = Image.open(bg_image_path)
         #tk_image = ImageTk.PhotoImage(pil_image)
@@ -60,7 +61,7 @@ class FaceRecognitionApp():
         self.verification_label.pack(pady=10)
         
         # Load the animated GIF frames using Pillow
-        self.verification_gif_path = r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\loading-icon-animated-gif-19-1.gif"
+        self.verification_gif_path = r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\loading-icon-animated-gif-19-1.gif"
 
         self.assistant_status_textbox = tk.Text(self.root, height=2, width=40)
         self.assistant_status_textbox.pack(pady=10)
@@ -78,7 +79,7 @@ class FaceRecognitionApp():
 
         self.speaking_flag = False
 
-        self.alert_sound = AudioSegment.from_mp3(r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\alert_sound.wav")
+        self.alert_sound = AudioSegment.from_mp3(r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\level-up-191997.wav")
         self.playback = None
 
         # binding the window closing to a function that stops the dms camera
@@ -117,37 +118,39 @@ class FaceRecognitionApp():
         self.verification_textbox.insert(tk.END, "Verifying...")
         gif_viewer = AnimatedGIFViewer(self.root, self.verification_gif_path)
         
+        #TODO : add the face recognition part 
+
         # Load the image of the person to be recognized
-        known_image_path = r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\my_image_cropped.jpg"
-        known_image = face_recognition.load_image_file(known_image_path)
-        known_encoding = face_recognition.face_encodings(known_image)[0]
-        known_gender = 'male'
-        known_person = {'encoding': known_encoding, 'gender': known_gender}
+        # known_image_path = r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\my_image_cropped.jpg"
+        # known_image = face_recognition.load_image_file(known_image_path)
+        # known_encoding = face_recognition.face_encodings(known_image)[0]
+        # known_gender = 'male'
+        # known_person = {'encoding': known_encoding, 'gender': known_gender}
 
-        self.capture = cv2.VideoCapture(0)
-        gif_viewer.stop()
-        threading.Thread(target=self.show_camera_feed).start()
+        # self.capture = cv2.VideoCapture(0)
+        # gif_viewer.stop()
+        # threading.Thread(target=self.show_camera_feed).start()
 
-        while True:
-            ret, frame = self.capture.read()
-            # Find all face locations in the current frame
-            face_locations = face_recognition.face_locations(frame)
+        # while True:
+        #     ret, frame = self.capture.read()
+        #     # Find all face locations in the current frame
+        #     face_locations = face_recognition.face_locations(frame)
             
-            if face_locations:
-                # Encode the first face found in the frame
-                current_encoding = face_recognition.face_encodings(frame, face_locations)[0]
+        #     if face_locations:
+        #         # Encode the first face found in the frame
+        #         current_encoding = face_recognition.face_encodings(frame, face_locations)[0]
 
-                # Compare the current face encoding with the known encoding
-                results = face_recognition.compare_faces([known_person['encoding']], current_encoding)
+        #         # Compare the current face encoding with the known encoding
+        #         results = face_recognition.compare_faces([known_person['encoding']], current_encoding)
         
-                if results[0]:
-                    self.recognized=True
-                    recognized_gender = known_person['gender']
-                    self.recognized_gender=recognized_gender
-                    self.verification_textbox.delete(1.0, tk.END)
-                    self.verification_textbox.insert(tk.END, f"Verified - Gender: {recognized_gender}")
-                    self.assistant_status_textbox.insert(tk.END, "Assisting...")
-                    break
+        #         if results[0]:
+        #             self.recognized=True
+        #             recognized_gender = known_person['gender']
+        #             self.recognized_gender=recognized_gender
+        #             self.verification_textbox.delete(1.0, tk.END)
+        #             self.verification_textbox.insert(tk.END, f"Verified - Gender: {recognized_gender}")
+        #             self.assistant_status_textbox.insert(tk.END, "Assisting...")
+        #             break
 
         threading.Thread(target=self.start_voice_assistant).start()
         self.dms_thread.start()
@@ -160,7 +163,7 @@ class FaceRecognitionApp():
                 if gif_viewer:
                     gif_viewer.stop()
                 self.camera_label.config(image=None)
-                gif_viewer = AnimatedGIFViewer(self.root, r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\bddf8a11582713.560fa0db0dee5.gif")
+                gif_viewer = AnimatedGIFViewer(self.root, r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\bddf8a11582713.560fa0db0dee5.gif")
                 try:
                     self.root.event_generate("<<UpdateUI2>>")
                     self.speak("jarvis is listening for the wake word",self.recognized_gender)
@@ -176,10 +179,12 @@ class FaceRecognitionApp():
                         audio = self.r.listen(mic,timeout=4,phrase_time_limit=4)
                         text = self.r.recognize_google(audio)
                         text = text.lower()
+                        ########################################      NEW IMPLEMENTATION
+                        
                         if text is not None:
                             self.root.after(100, self.update_ui_1,text)
                         prompt = f"""
-                           You are an AI assistant that understands english and can answer any question to help the driver your only task is to return a function name only. Given the user’s input: “{text}”, choose the best matching function from the following list: {', '.join(self.functions.keys())}.
+                           You are an AI assistant that understands english and arabic and can answer any question with only one word in english you cant reply with more than one word to help the driver your only task is to return a function name only. Given the user’s input: “{text}”, choose the best matching function from the following list: {', '.join(self.functions.keys())}.
                             understand the context of the user input. If the context of the user input logically matches one of the functions, return the exact name of that function. if the input doesnt match any, return 'none'.
                             """
 
@@ -189,7 +194,7 @@ class FaceRecognitionApp():
                             'content': prompt,
                           },
                         ]
-                        res = chat('gemma2', messages=messages)
+                        res = chat('llama3.1', messages=messages)
                         result = res['message']['content']
                         fun_name = result.strip()
                         print("function name",fun_name)
@@ -211,9 +216,10 @@ class FaceRecognitionApp():
                             result2 = res2['message']['content']
 
                             self.speak(result2,self.recognized_gender)
+                            
                         
-        #--------------------------------------------------------------------------------------------------------------------
-                                                    #OLD IMPLEMENTATION
+        # --------------------------------------------------------------------------------------------------------------------
+        #                                             OLD IMPLEMENTATION
                         # if text is not None:
                         #     self.root.after(100, self.update_ui_1,text)
                         #     if "how are you" in text:
@@ -312,7 +318,7 @@ class FaceRecognitionApp():
         except Exception as e:
             return
 
-    def exit_app(self,query):
+    def farewell(self,query):
         self.speak("Okay, goodnight sir.",self.recognized_gender)
         self.on_close()
         exit()
@@ -367,14 +373,15 @@ class FaceRecognitionApp():
         return model
 
     def open_back_camera(self):
-        model = self.load_yolo(r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\CX_Deployment\yolov8s.pt")
+        model = self.load_yolo(r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\yolov8n.pt")
 
         if self.capture is None:
             self.capture = cv2.VideoCapture(0)
         
         # dict maping class_id to class_name
         CLASS_NAMES_DICT = model.model.names
-        box_annotator = BoxAnnotator(color=ColorPalette(), thickness=1, text_thickness=1, text_scale=0.5)
+        box_annotator = BoxAnnotator(thickness=1)  # Green in BGR format
+
 
         # Use if the voice command didn't work
         self.root.bind_all("<KeyPress-q>", self.close_back_camera)
@@ -396,13 +403,13 @@ class FaceRecognitionApp():
             
             # format custom labels
             labels = [
-                f"{CLASS_NAMES_DICT[class_id]} {confidence:0.2f}"
-                for _, confidence, class_id, tracker_id
-                in detections
-            ]
+                         f"{CLASS_NAMES_DICT[class_id]} {confidence:0.2f}"
+                         for _, confidence, class_id in zip(detections.xyxy, detections.confidence, detections.class_id)
+                        ]
+
         
             # annotate and display frame
-            frame = box_annotator.annotate(frame=frame, detections=detections, labels=labels)
+            frame = box_annotator.annotate(scene=frame, detections=detections)
         
             # Resize the frame to fit the Tkinter window
             frame = cv2.resize(frame, (800, 600))
@@ -445,7 +452,7 @@ class FaceRecognitionApp():
         landmarks_window, landmarks_label = self.create_landmarks_window()
         
         # Load the facial landmark predictor
-        predictor = dlib.shape_predictor(r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\CX_Deployment\shape_predictor_68_face_landmarks.dat\shape_predictor_68_face_landmarks.dat")
+        predictor = dlib.shape_predictor(r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\shape_predictor_68_face_landmarks.dat")
         face_detector = dlib.get_frontal_face_detector()
         
         # Threshold for blink detection
