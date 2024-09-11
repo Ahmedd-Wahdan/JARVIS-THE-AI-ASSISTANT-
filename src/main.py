@@ -22,8 +22,8 @@ from pydub import AudioSegment
 from pydub.playback import play
 import imageio
 from tkinter import PhotoImage
-# import face_recognition
 from ollama import chat
+from deepface import DeepFace
 
 
 class FaceRecognitionApp():
@@ -36,22 +36,19 @@ class FaceRecognitionApp():
         self.robot_label.pack(pady=20)
         self.capture = None
         self.r = sr.Recognizer()
-        self.recognized_gender="female"
+        self.recognized_gender=None
         self.output_text = tk.Text(self.root, height=6, width=40)
         self.output_text.pack(pady=10)
         self.functions = {"greeting":self.greeting,
-                          "open_back_camera":self.open_camera,
-                          "close_back_camera":self.close_camera,
+                          "open back camera":self.open_camera,
+                          "close back camera":self.close_camera,
                           "weather":self.get_and_speak_weather, 
-                          "play_song_on_spotify_app":self.play_song_on_spotify_app,
-                          "play_video_on_youtube":self.play_video_on_youtube,
+                          "spotify a song":self.play_song_on_spotify_app,
+                          "youtube a video":self.play_video_on_youtube,
+                          "google something":self.search_on_google,
                           "farewell":self.farewell} 
 
-        #pil_image = Image.open(bg_image_path)
-        #tk_image = ImageTk.PhotoImage(pil_image)
-
-        # Store tk_image as an attribute
-
+        
         # Create a canvas with the background image
         self.verification_textbox = tk.Text(self.root, height=2, width=40)
         self.verification_textbox.pack(pady=10)
@@ -73,6 +70,7 @@ class FaceRecognitionApp():
         self.camera_label.pack()
         self.stop_back_camera = threading.Event()
         self.back_camera_thread = None 
+        self.map_thread = threading.Thread(target=self.create_map_window)
         self.recognized=False
         self.dms_stop_event = threading.Event()
         self.dms_thread = threading.Thread(target=self.start_dms)
@@ -87,6 +85,7 @@ class FaceRecognitionApp():
         
         # Start the face recognition and voice assistant
         threading.Thread(target=self.start_face_recognition).start()
+        threading.Thread(target=self.show_camera_feed).start()
 
 
 
@@ -117,43 +116,42 @@ class FaceRecognitionApp():
         self.verification_textbox.delete(1.0, tk.END)
         self.verification_textbox.insert(tk.END, "Verifying...")
         gif_viewer = AnimatedGIFViewer(self.root, self.verification_gif_path)
+
+        # Load the image of the known person
+        known_image_path = r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\face_db"    
+        self.capture = cv2.VideoCapture(0)
+        gif_viewer.stop()
         
-        #TODO : add the face recognition part 
+        while True:
+            ret, frame = self.capture.read()
+            if not ret:
+                break
 
-        # Load the image of the person to be recognized
-        # known_image_path = r"C:\Users\ahmed\Desktop\my projects\JARVIS_GITHUB\JARVIS_V0.1\my_image_cropped.jpg"
-        # known_image = face_recognition.load_image_file(known_image_path)
-        # known_encoding = face_recognition.face_encodings(known_image)[0]
-        # known_gender = 'male'
-        # known_person = {'encoding': known_encoding, 'gender': known_gender}
+            # Find faces in the frame and analyze them
+            try:
+                analysis = DeepFace.analyze(frame, actions=['gender'], enforce_detection=False)
+                
+                
+                # Compare the face embeddings
+                result = DeepFace.find(img_path = frame, db_path=known_image_path, enforce_detection=False,silent=True,threshold=0.3)
+                if result:
+                    print("found the person")
+                    self.recognized = True
+                    recognized_gender = 'male' if analysis[0]['gender']['Man'] > analysis[0]['gender']['Woman'] else 'female'
+                    # print(recognized_gender)
+                    self.recognized_gender = recognized_gender
+                    self.verification_textbox.delete(1.0, tk.END)
+                    self.verification_textbox.insert(tk.END, f"Verified - Gender: {recognized_gender}")
+                    self.assistant_status_textbox.insert(tk.END, "Assisting...")
+                    self.capture.release()
+                    cv2.destroyAllWindows()
+                    break
+            except Exception as e:
+                print(f"Error: {e}")
 
-        # self.capture = cv2.VideoCapture(0)
-        # gif_viewer.stop()
-        # threading.Thread(target=self.show_camera_feed).start()
-
-        # while True:
-        #     ret, frame = self.capture.read()
-        #     # Find all face locations in the current frame
-        #     face_locations = face_recognition.face_locations(frame)
-            
-        #     if face_locations:
-        #         # Encode the first face found in the frame
-        #         current_encoding = face_recognition.face_encodings(frame, face_locations)[0]
-
-        #         # Compare the current face encoding with the known encoding
-        #         results = face_recognition.compare_faces([known_person['encoding']], current_encoding)
-        
-        #         if results[0]:
-        #             self.recognized=True
-        #             recognized_gender = known_person['gender']
-        #             self.recognized_gender=recognized_gender
-        #             self.verification_textbox.delete(1.0, tk.END)
-        #             self.verification_textbox.insert(tk.END, f"Verified - Gender: {recognized_gender}")
-        #             self.assistant_status_textbox.insert(tk.END, "Assisting...")
-        #             break
-
-        threading.Thread(target=self.start_voice_assistant).start()
         self.dms_thread.start()
+        threading.Thread(target=self.start_voice_assistant).start()
+        
 
     def start_voice_assistant(self):
         gif_viewer = None
@@ -184,9 +182,21 @@ class FaceRecognitionApp():
                         if text is not None:
                             self.root.after(100, self.update_ui_1,text)
                         prompt = f"""
-                           You are an AI assistant that understands english and arabic and can answer any question with only one word in english you cant reply with more than one word to help the driver your only task is to return a function name only. Given the user’s input: “{text}”, choose the best matching function from the following list: {', '.join(self.functions.keys())}.
-                            understand the context of the user input. If the context of the user input logically matches one of the functions, return the exact name of that function. if the input doesnt match any, return 'none'.
-                            """
+You are an AI assistant for cars, capable of executing specific functions based on user input. Your task is to return the *exact* name of a function from the list provided, and nothing else. Do not provide explanations, justifications, or additional words.
+
+User input: “{text}”
+
+Here is the list of available function names: {', '.join(self.functions.keys())}.
+
+- If the user's input's meaning clearly corresponds to one of the functions, return only the exact function name from the list.
+- If none of the functions match the user's input or the user asked a general question, return exactly the word 'none'.
+
+Remember:
+- Output must be *only* the function name or 'none'.
+- No other text or explanations should be included.
+
+                                """
+
 
                         messages = [
                           {
@@ -202,17 +212,17 @@ class FaceRecognitionApp():
 
                         if fun_name in self.functions:
         
-                            self.functions[fun_name](text)
+                            self.functions[fun_name](text)   #execute the function chosen by the llm  
 
 
                         elif fun_name.lower() == "none":
                             messages = [
                           {
                             'role': 'user',
-                            'content': text+"you are jarvis an ai assistant in cars but you can answer questions",
+                            'content': text+" make the answer very short and clear",
                           },
                                         ]   
-                            res2 = chat('gemma2', messages=messages)
+                            res2 = chat('llama3.1', messages=messages)
                             result2 = res2['message']['content']
 
                             self.speak(result2,self.recognized_gender)
@@ -293,6 +303,7 @@ class FaceRecognitionApp():
         if not self.back_camera_thread or not self.back_camera_thread.is_alive():
             self.back_camera_thread = threading.Thread(target=self.open_back_camera)
             self.back_camera_thread.start()
+            self.start_map_thread()
         else:
             self.speak("The back camera is already active.",self.recognized_gender)
 
@@ -353,9 +364,9 @@ class FaceRecognitionApp():
 
         # Set voice based on gender
         if gender.lower() == 'male':
-            engine.setProperty('voice', voices[0].id)  # Assuming the first voice is male
+            engine.setProperty('voice', voices[1].id)  # Assuming the first voice is male
         elif gender.lower() == 'female':
-            engine.setProperty('voice', voices[1].id)  # Assuming the second voice is female
+            engine.setProperty('voice', voices[0].id)  # Assuming the second voice is female
 
         engine.setProperty('rate', rate + 75)
         engine.say(text)
@@ -363,7 +374,71 @@ class FaceRecognitionApp():
 
         self.speaking_flag = False
 
-   
+    def start_map_thread(self):
+        if not hasattr(self, 'map_thread') or not self.map_thread.is_alive():
+            self.map_thread.start()
+
+
+    def schedule_map_update(self):
+        if not self.stop_back_camera.is_set():
+            # Update the map with the current object coordinates and labels
+            self.update_map(self.current_object_coordinates, self.current_labels)
+            # Schedule the next update after 100 ms
+            self.map_window.after(100, self.schedule_map_update)
+
+    def create_map_window(self):
+        self.map_window = tk.Toplevel(self.root)
+        self.map_window.title("Map")
+        self.map_window.geometry("400x400")
+        map_canvas = tk.Canvas(self.map_window, width=400, height=400, bg='white')
+        map_canvas.pack()
+        self.map_window.canvas = map_canvas
+
+        # Draw initial car position
+        car_image = Image.open(r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\car_image.png")
+        car_image = car_image.resize((50, 50))  # Resize the car image
+        car_photo = ImageTk.PhotoImage(car_image)
+        map_canvas.create_image(200, 200, image=car_photo)
+        map_canvas.image = car_photo
+
+        # Schedule the first map update
+        self.schedule_map_update()
+
+    def update_map(self, object_coordinates,labels):
+        if not hasattr(self, 'map_window') or not self.map_window or not self.map_window.winfo_exists():
+            return
+
+        map_canvas = self.map_window.canvas
+
+        # Clear previous points
+        map_canvas.delete("object")
+        map_canvas.delete("label")
+        
+        # Draw the car at the center of the map
+        car_image = Image.open(r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\car_image.png")
+        car_image = car_image.resize((50, 50))  # Resize the car image
+        car_photo = ImageTk.PhotoImage(car_image)
+        map_canvas.create_image(200, 200, image=car_photo)
+        map_canvas.image = car_photo
+        
+        for obj_id, (x1, y1, x2, y2) in object_coordinates.items():
+            # Convert the x-coordinate to map coordinates
+            map_x = 200 - ((x1 + x2) / 2 / 800) * 200 +50  # Adjust scaling factor if needed
+            # Use a fixed y-coordinate` `
+            map_y = 250
+            
+            # Draw the object as a red point
+            map_canvas.create_oval(
+                map_x - 10, map_y - 10, map_x + 10, map_y + 10,
+                fill="red", tags="object"
+            )
+            label = labels[obj_id]
+            map_canvas.create_text(
+                map_x, map_y - 15,  # Position the text above the point
+                text=label,
+                fill="black",
+                font=("Arial", 10),tags="label"
+            )
     
     def load_yolo(self, model_path): 
         model = YOLO(model_path)
@@ -374,7 +449,7 @@ class FaceRecognitionApp():
 
     def open_back_camera(self):
         model = self.load_yolo(r"C:\Users\ahmed\OneDrive\Desktop\my_projects\JARVIS-THE-AI-ASSISTANT-\yolov8n.pt")
-
+        model.overrides['verbose'] = False 
         if self.capture is None:
             self.capture = cv2.VideoCapture(0)
         
@@ -403,11 +478,14 @@ class FaceRecognitionApp():
             
             # format custom labels
             labels = [
-                         f"{CLASS_NAMES_DICT[class_id]} {confidence:0.2f}"
-                         for _, confidence, class_id in zip(detections.xyxy, detections.confidence, detections.class_id)
-                        ]
+            CLASS_NAMES_DICT[class_id]
+            for class_id in detections.class_id
+            ]
 
-        
+
+            object_coordinates = {idx: (x1, y1, x2, y2) for idx, (x1, y1, x2, y2) in enumerate(detections.xyxy)}
+            self.update_map(object_coordinates,labels)
+            # print(detections.xyxy) 
             # annotate and display frame
             frame = box_annotator.annotate(scene=frame, detections=detections)
         
@@ -436,6 +514,9 @@ class FaceRecognitionApp():
         if self.back_camera_thread and self.back_camera_thread.is_alive():
             # Set the stop_back_camera flag to signal thread termination
             self.stop_back_camera.set()
+            self.map_thread.join()
+            self.map_window.destroy()
+            self.map_window = None
             # Wait for the thread to finish before continuing
             self.back_camera_thread.join()
             # Reset the flag for potential future use

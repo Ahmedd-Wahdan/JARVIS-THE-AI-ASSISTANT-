@@ -76,7 +76,7 @@ ultralytics-thop==2.0.6
 urllib3==2.2.2
 Werkzeug==3.0.4
 wikipedia==1.4.0
-
+deepface (and its two models)
 -shape_predictor_68_face_landmarks.dat  ""landmark detection model"
 
 -install any yolo model 
